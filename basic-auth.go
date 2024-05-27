@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/aws/aws-cdk-go/awscdk/v2"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awsapigateway"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsdynamodb"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awslambda"
 
@@ -33,8 +34,36 @@ func NewBasicAuthStack(scope constructs.Construct, id string, props *BasicAuthSt
 		Code:    awslambda.AssetCode_FromAsset(jsii.String("lambda/function.zip"), nil),
 		Handler: jsii.String("main"),
 	})
-
 	table.GrantReadWriteData(lambda)
+
+	api := awsapigateway.NewRestApi(stack, jsii.String("myRest"), &awsapigateway.RestApiProps{
+		DefaultCorsPreflightOptions: &awsapigateway.CorsOptions{
+			AllowHeaders: jsii.Strings("Content-Type", "Authorization"),
+			AllowMethods: jsii.Strings("GET", "POST", "PUT", "DELETE", "OPTIONS"),
+			AllowOrigins: jsii.Strings("*"),
+		},
+		DeployOptions: &awsapigateway.StageOptions{
+			LoggingLevel:     awsapigateway.MethodLoggingLevel_INFO,
+			DataTraceEnabled: jsii.Bool(true),
+		},
+		EndpointConfiguration: &awsapigateway.EndpointConfiguration{
+			Types: &[]awsapigateway.EndpointType{
+				awsapigateway.EndpointType_REGIONAL,
+			},
+		},
+		CloudWatchRole: jsii.Bool(true),
+	})
+
+	integration := awsapigateway.NewLambdaIntegration(lambda, nil)
+
+	// register resource
+	registerResource := api.Root().AddResource(jsii.String("register"), nil)
+	registerResource.AddMethod(jsii.String("POST"), integration, nil)
+
+	// login resource
+	loginResource := api.Root().AddResource(jsii.String("login"), nil)
+	loginResource.AddMethod(jsii.String("POST"), integration, nil)
+
 	return stack
 }
 
